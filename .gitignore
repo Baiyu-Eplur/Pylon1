@@ -1,0 +1,32 @@
+# Python / local environment
+__pycache__/
+.pytest_cache/
+.venv/
+*.pyc
+
+# IDE / local assistant state
+.idea/
+.claude/
+
+# Large generated simulation outputs
+output/
+
+# Full-size generated wind/load datasets
+data/
+
+# Legacy/reference archives kept locally
+TIMUR4/
+reference/
+
+# Local generated OpenSees files at project root
+Input.tcl
+inputs_aerodynamic_damping.tcl
+
+# Generated archives
+*.zip
+
+# Keep only lightweight model/package definitions in the validated teacher case.
+teacher_c4_opensees_project/*.out
+teacher_c4_opensees_project/data/
+teacher_c4_opensees_project/output/
+teacher_c4_opensees_project/reference_analysis_status.txt

@@ -1,0 +1,49 @@
+geometry:
+  type: 3              # 1=Parabolic, 2=Catenary, 3=Broken-line
+  L: 2.0               # Span (m)
+  Sag: 1.0             # Sag (m)
+  discretisation: 1.0  # Element horizontal spacing (m)
+
+material:
+  Dia: 0.02862
+  E: 82000000000
+  G: 4265000000
+  ro: 3480
+
+analysis:
+  type: "TH"
+  fiber_section: 1
+  pretension_load: 0.0
+  multiplier_vertical_load: 1.242584042
+  multiplier_mass: 1.242584042
+  numbers_of_step_gravity: 10
+  tolerance: 1.0e-3
+  number_of_modes: 2
+
+time_history:
+  folder_1: ["FORCE_3"]
+  folder_2: ["Test1"]
+  dt: 0.05
+  npt: 70536
+  ro_air: 1.204
+
+damping:
+  model: "Rayleigh"
+  xi: 0.01
+  modes_for_damping: 10
+
+solver:
+  opensees_path: 'D:\Pyprogramme\OpenSees3.8.0\bin\OpenSees.exe'
+  input_tcl: "Input.tcl"
+  work_dir: "."
+
+paths:
+  forces_dir: "data/forces"
+  wind_dir: "data/wind/SIM1"
+  tcl_procedures_dir: "tcl_procedures"
+  output_dir: "output"
+  save_prefix: "SMOKE_F3"
+
+display:
+  plotter: true
+  modal_plotter: true

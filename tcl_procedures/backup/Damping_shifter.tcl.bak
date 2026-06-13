@@ -1,0 +1,135 @@
+#  read the file one line at a time
+# ########################################
+puts ">>> Damping_shifter.tcl loaded"
+
+ source "tcl_procedures/readColumnFromFile.tcl"
+ source "tcl_procedures/interpolate.tcl"
+ 
+ set filename "data/aero_coeffs/C_D_data.txt"
+ set column 0
+ set CD_x [readColumnFromFile $filename $column]
+ set column 1
+ set CD_y [readColumnFromFile $filename $column]
+
+ set filename "data/aero_coeffs/dC_L.txt"
+ set column 0
+ set dCL_x $CD_x
+ set dCL_y [readColumnFromFile $filename $column]
+
+ source inputs_aerodynamic_damping.tcl
+
+# ########################################
+# define procedure
+proc adapt_damp {} {
+
+	global STKO_VAR_analyze_done
+	global STKO_VAR_time
+	global CD_x
+	global CD_y
+	global dCL_x
+	global dCL_y
+	global wind_velocity_per_element_H
+	global wind_velocity_per_element_V
+	global time
+	global ro_air
+	global B
+	global L
+	global MassM
+	global omegaN
+
+    if {![info exists STKO_VAR_analyze_done]} {
+        puts ">>>CheckPoint >DONE_IN< STKO_VAR_analyze_done not defined yet. Skipping adapt_damp."
+        return
+    }
+
+    if {![info exists STKO_VAR_time]} {
+        puts ">>>CheckPoint >TIME_IN< STKO_VAR_time not defined yet. Skipping adapt_damp."
+        return
+    }
+
+
+
+	# ✅ 新增：用于存储上一步阻尼
+	global prev_xi_total_list
+
+	if {$STKO_VAR_analyze_done == 0} {
+		
+		set dd [expr int($STKO_VAR_time/10)*0.1]
+		if {$dd > 0.1} {set dd -0.1}
+
+		foreach ele [getEleTags] {
+			set vmean [list 0.0 0.0 0.0]
+			set elenodes [eleNodes $ele]
+			set nnodes [llength $elenodes]
+
+			foreach node $elenodes {
+				set v [nodeVel $node]
+				for {set i 0} {$i < 3} {incr i} { 
+					lset vmean $i [expr [lindex $vmean $i]+[lindex $v $i]]
+				}
+			}
+
+			for {set i 0} {$i < 3} {incr i} { 
+				lset vmean $i [expr [lindex $vmean $i] / $nnodes.0]
+			}
+
+			set currentTime [getTime]
+
+			set v_cable_x [lindex $vmean 1]
+			set v_cable_z [lindex $vmean 2]
+
+			set external_wind_vector_H [lindex $wind_velocity_per_element_H [expr $ele-1]]
+			set external_wind_vector_V [lindex $wind_velocity_per_element_V [expr $ele-1]]
+
+			set v_wind_x [interpolate $currentTime $time $external_wind_vector_H]
+			set v_wind_z [interpolate $currentTime $time $external_wind_vector_V]
+
+			if {$v_wind_x < $v_cable_x} {
+				set v_rel_start [list 0.0 $v_wind_x $v_wind_z]
+				set v_rel_end   [list 0.0 $v_cable_x $v_cable_z]
+			} else {
+				set v_rel_start [list 0.0 $v_cable_x $v_cable_z]
+				set v_rel_end   [list 0.0 $v_wind_x $v_wind_z]
+			}
+
+			set v_rel_x [expr [lindex $v_rel_end 1]-[lindex $v_rel_start 1]]
+			set v_rel_z [expr [lindex $v_rel_end 2]-[lindex $v_rel_start 2]]
+			set v_total [expr (($v_rel_x**2)+($v_rel_z**2))**0.5]
+
+			set alpha [expr atan($v_rel_z/$v_rel_x)]
+
+			set CD  [interpolate [expr abs($alpha)/3.14*180] $CD_x $CD_y]
+			set dCL [interpolate [expr abs($alpha)/3.14*180] $dCL_x $dCL_y]
+
+			set xi_total [expr 0.01 + $ro_air*$v_total*$B*$L/4/$MassM/$omegaN*($dCL+$CD)]
+
+			# ✅ 新增：检查是否变化
+			set prev_xi 0.0
+			if {[info exists prev_xi_total_list($ele)]} {
+				set prev_xi $prev_xi_total_list($ele)
+			}
+			set diff [expr abs($xi_total - $prev_xi)]
+			if {$diff > 1e-6} {
+				# ✅ 控制台输出提示
+				puts ">>> Time $STKO_VAR_time | Element $ele: Damping changed from $prev_xi to $xi_total"
+
+				# ✅ 可选：写入日志文件
+				set logfile [open "Output/damping_change_log.txt" a]
+				puts $logfile "$STKO_VAR_time $ele $prev_xi $xi_total"
+				close $logfile
+			}
+
+			# ✅ 更新全局记录
+			set prev_xi_total_list($ele) $xi_total
+
+			setElementRayleighDampingFactors $ele [expr 2*$xi_total*$omegaN] 0.0 0.0 0.0
+		}
+	}
+}
+
+
+# append to custom functions
+global STKO_VAR_OnAfterAnalyze_CustomFunctions
+lappend STKO_VAR_OnAfterAnalyze_CustomFunctions adapt_damp
+puts ">>> !!!!!Registered functions after append: $STKO_VAR_OnAfterAnalyze_CustomFunctions"
+

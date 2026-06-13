@@ -1,0 +1,251 @@
+puts ">>> STKO_VAR_OnAfterAnalyze_CustomFunctions before loop: $STKO_VAR_OnAfterAnalyze_CustomFunctions"
+if {![info exists STKO_VAR_time]} {
+	set STKO_VAR_time 0.0
+}
+
+# analyses command
+# domainChange
+# constraints Transformation
+# numberer RCM
+# system UmfPack
+# test NormUnbalance 0.0001 20  
+# algorithm Newton
+# integrator Newmark 0.0 0.0
+# analysis Transient
+# ======================================================================================
+# ADAPTIVE TRANSIENT ANALYSIS
+# ======================================================================================
+
+# ======================================================================================
+# USER INPUT DATA
+# ======================================================================================
+
+# duration and initial time step
+# set total_duration 10.0
+# set initial_num_incr 100
+
+# =================================================================================
+# STKO COMMON VARIABLES (STKO_VAR_***)
+# =================================================================================
+set STKO_VAR_process_id 0
+# # The result from analyze command  (0 if succesfull)
+# set STKO_VAR_analyze_done 0
+# # The alternative result from after-analyze custom functions (0 if succesfull)
+# set STKO_VAR_afterAnalyze_done 0
+# # The increment counter in the current stage
+# set STKO_VAR_increment 0
+# # The current time
+# set STKO_VAR_time 0.0
+# # The current time increment
+# set STKO_VAR_time_increment 0.0
+# # The initial time increment
+# set STKO_VAR_initial_time_increment 0.0
+# # The current stage percentage
+# set STKO_VAR_percentage 0.0
+# # The last number of iterations
+# set STKO_VAR_num_iter 0
+# # The last error norm
+# set STKO_VAR_error_norm 0.0
+# # A list of custom functions called before solving the current time step
+set STKO_VAR_OnBeforeAnalyze_CustomFunctions {}
+# # A list of custom functions called after solving the current time step
+# set STKO_VAR_OnAfterAnalyze_CustomFunctions {}
+# # A list of monitor functions
+# set STKO_VAR_MonitorFunctions {}
+# # for backward compatibility (STKO version < 3.1.0).
+# # It is now deprecated and will be removed in future versions.
+# set all_custom_functions {}
+# # Call functions before the analyze command.
+proc STKO_CALL_OnBeforeAnalyze {} {
+	global STKO_VAR_OnBeforeAnalyze_CustomFunctions
+	foreach item $STKO_VAR_OnBeforeAnalyze_CustomFunctions {
+		$item
+	}
+}
+# Call functions after the analyze command.
+# proc STKO_CALL_OnAfterAnalyze {} {
+	# global STKO_VAR_analyze_done
+	# global STKO_VAR_OnAfterAnalyze_CustomFunctions
+	# global all_custom_functions
+	# # global STKO_VAR_MonitorFunctions
+	# foreach item $STKO_VAR_OnAfterAnalyze_CustomFunctions {
+		# $item
+	# }
+	# if {$STKO_VAR_analyze_done == 0} {
+		# foreach item $all_custom_functions {
+			# $item
+		# }
+		# #foreach item $STKO_VAR_MonitorFunctions {
+		# #	$item
+		# #}
+	# }
+# }
+
+proc STKO_CALL_OnAfterAnalyze {} {
+	global STKO_VAR_analyze_done
+	global STKO_VAR_OnAfterAnalyze_CustomFunctions
+	global all_custom_functions
+
+	# 检查是否有函数被注册进 STKO_VAR_OnAfterAnalyze_CustomFunctions
+	puts ">>> CheckPoint >Excution Start< in Calling STKO_CALL_OnAfterAnalyze..."
+	puts ">>> Registered functions: $STKO_VAR_OnAfterAnalyze_CustomFunctions"
+
+	foreach item $STKO_VAR_OnAfterAnalyze_CustomFunctions {
+		puts ">>> CheckPoint >Excution In Process< Calling custom afterAnalyze function: $item"
+		$item
+	}
+
+	if {$STKO_VAR_analyze_done == 0} {
+		foreach item $all_custom_functions {
+			puts ">>> Calling custom function (legacy): $item"
+			$item
+		}
+	}
+	
+}
+
+
+# parameters for adaptive time step
+set max_factor 1.0
+set min_factor 1e-06
+set max_factor_increment 1.5
+set min_factor_increment 1e-06
+set max_iter 20
+set desired_iter 10
+
+set STKO_VAR_increment 1
+set factor 1.0
+set old_factor $factor
+set STKO_VAR_time 0.0
+set initial_time_increment [expr $total_duration / $initial_num_incr]
+set time_tolerance [expr abs($initial_time_increment) * 1.0e-8]
+
+set STKO_VAR_initial_time_increment $initial_time_increment
+
+puts ">>> STKO_VAR_OnAfterAnalyze_CustomFunctions before loop: $STKO_VAR_OnAfterAnalyze_CustomFunctions"
+
+global STKO_VAR_analyze_done
+global STKO_VAR_time
+global STKO_VAR_time_increment
+
+while 1 {
+	
+	# check end of analysis
+	if {[expr abs($STKO_VAR_time)] >= [expr abs($total_duration)]} {
+		if {$STKO_VAR_process_id == 0} {
+			puts "Target time has been reached. Current time = $STKO_VAR_time"
+			puts "SUCCESS."
+		}
+		break
+	}
+	
+	# compute new adapted time increment
+	set STKO_VAR_time_increment [expr $initial_time_increment * $factor]
+	if {[expr abs($STKO_VAR_time + $STKO_VAR_time_increment)] > [expr abs($total_duration) - $time_tolerance]} {
+		set STKO_VAR_time_increment [expr $total_duration - $STKO_VAR_time]
+	}
+	
+	# update integrator
+	integrator Newmark 0.5 0.25
+	
+	# before analyze
+	STKO_CALL_OnBeforeAnalyze
+	
+	# perform this step
+	set STKO_VAR_analyze_done [analyze 1 $STKO_VAR_time_increment]
+	
+	# update common variables
+	if {$STKO_VAR_analyze_done == 0} {
+		set STKO_VAR_num_iter [testIter]
+		set STKO_VAR_time [expr $STKO_VAR_time + $STKO_VAR_time_increment]
+		set STKO_VAR_percentage [expr $STKO_VAR_time/$total_duration]
+		set norms [testNorms]
+		if {$STKO_VAR_num_iter > 0} {set STKO_VAR_error_norm [lindex $norms [expr $STKO_VAR_num_iter-1]]} else {set STKO_VAR_error_norm 0.0}
+	}
+	
+	
+	# 检查 STKO_VAR_analyze_done 是否存在!!!!
+	if {![info exists STKO_VAR_analyze_done]} {
+		puts ">>> CheckPoint >DONE_OUT< STKO_VAR_analyze_done not defined yet. Skipping adapt_damp."
+		return
+	} else {
+		puts ">>> CheckPoint>DONE_OUT< STKO_VAR_analyze_done = $STKO_VAR_analyze_done."
+	}
+
+	# 检查 STKO_VAR_time 是否存在!!!!!
+	if {![info exists STKO_VAR_time]} {
+		puts ">>> CheckPoint >DONE_OUT< STKO_VAR_time not defined yet. Skipping adapt_damp."
+		return
+	} else {
+		puts ">>> CheckPoint >DONE_OUT< STKO_VAR_time = $STKO_VAR_time."
+	}
+
+	
+	# after analyze
+	set STKO_VAR_afterAnalyze_done 0
+	STKO_CALL_OnAfterAnalyze
+	
+	# check convergence
+	if {$STKO_VAR_analyze_done == 0} {
+		
+		# print statistics
+		if {$STKO_VAR_process_id == 0} {
+			puts [format "Increment: %6d | Iterations: %4d | Norm: %8.3e | Progress: %7.3f %%" $STKO_VAR_increment $STKO_VAR_num_iter  $STKO_VAR_error_norm [expr $STKO_VAR_percentage*100.0]]
+		# 显示示例阻尼系数（假设你全局定义了 prev_xi_total_list 变量）
+			# 这里以第1个单元为例
+			if {[info exists prev_xi_total_list(1)]} {
+				puts [format ">>> Damping of Element 1 at time %.3f = %.6f" $STKO_VAR_time $prev_xi_total_list(1)]
+			} else {
+				puts ">>> Damping of Element 1 not yet initialized."
+			}
+		}
+		
+		# update adaptive factor
+		set factor_increment [expr min($max_factor_increment, [expr double($desired_iter) / double($STKO_VAR_num_iter)])]
+		
+		# check STKO_VAR_afterAnalyze_done. Simulate a reduction similar to non-convergence
+		if {$STKO_VAR_afterAnalyze_done != 0} {
+			set factor_increment [expr max($min_factor_increment, [expr double($desired_iter) / double($max_iter)])]
+			if {$STKO_VAR_process_id == 0} {
+				puts "Reducing increment factor due to custom error controls. Factor = $factor"
+			}
+		}
+		
+		set factor [expr $factor * $factor_increment]
+		if {$factor > $max_factor} {
+			set factor $max_factor
+		}
+		if {$STKO_VAR_process_id == 0} {
+			if {$factor > $old_factor} {
+				puts "Increasing increment factor due to faster convergence. Factor = $factor"
+			}
+		}
+		set old_factor $factor
+		
+		# increment time step
+		incr STKO_VAR_increment
+		
+	} else {
+		
+		# update adaptive factor
+		set STKO_VAR_num_iter $max_iter
+		set factor_increment [expr max($min_factor_increment, [expr double($desired_iter) / double($STKO_VAR_num_iter)])]
+		set factor [expr $factor * $factor_increment]
+		if {$STKO_VAR_process_id == 0} {
+			puts "Reducing increment factor due to non convergence. Factor = $factor"
+		}
+		if {$factor < $min_factor} {
+			if {$STKO_VAR_process_id == 0} {
+				puts "ERROR: current factor is less then the minimum allowed ($factor < $min_factor)"
+				puts "Giving up"
+			}
+			error "ERROR: the analysis did not converge"
+		}
+	}
+	
+}
+
+wipeAnalysis
+
+# Done!
+puts "ANALYSIS SUCCESSFULLY FINISHED"

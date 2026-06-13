@@ -1,0 +1,68 @@
+geometry:
+  type: 2
+  L: 322.8
+  Sag: 10.48
+  discretisation: 3.228
+
+material:
+  conductor_name: "Zebra ACSR"
+  Dia: 0.02862
+  E: 69000000000
+  G: 4265000000
+  ro: 3480
+  self_weight_N_per_m: 15.90
+  rated_strength_N: 131900
+
+analysis:
+  type: "TH"
+  fiber_section: 1
+  pretension_load: 19785.0
+  multiplier_vertical_load: 1.0
+  multiplier_mass: 1.0
+  numbers_of_step_gravity: 10
+  tolerance: 1.0e-3
+  number_of_modes: 3
+
+time_history:
+  folder_1: ["FORCE_3"]
+  folder_2: ["SIM1"]
+  dt: 0.05
+  npt: 3072
+  ro_air: 1.204
+
+wind_generation:
+  enabled: false
+  u_star: 0.6
+  force_name: "FORCE_3"
+  sim_name: "SIM1"
+  support_elevation: 49.4
+  kappa: 0.387
+  z0: 0.05
+  ro_air_force: 0.001293
+  seed: 1
+  reuse_existing: true
+  overwrite: false
+
+damping:
+  model: "Rayleigh"
+  xi: 0.01
+  modes_for_damping: 10
+
+solver:
+  opensees_path: 'D:\Pyprogramme\OpenSees3.8.0\bin\OpenSees.exe'
+  input_tcl: "Input.tcl"
+  work_dir: "."
+
+paths:
+  forces_dir: "data/forces"
+  wind_dir: "data/wind/SIM1"
+  time_file: "data/aero_coeffs/time.txt"
+  aero_coeffs_dir: "data/aero_coeffs"
+  tcl_procedures_dir: "tcl_procedures"
+  output_dir: "output/th_timur_3072_corrected"
+  save_prefix: "TIMUR_3072_F3_CORRECTED"
+
+display:
+  plotter: true
+  modal_plotter: true
+  realtime_monitor: false

@@ -1,0 +1,83 @@
+geometry:
+  type: 3              # 1=Parabolic, 2=Catenary, 3=Broken-line
+  L: 2.0               # 跨度 (m)
+  Sag: 1.0             # 垂度 (m)
+  discretisation: 1.0  # 纵向离散步长 (m)
+
+material:
+  Dia: 0.02862         # 等效直径 (m)
+  E: 82000000000       # 纵向弹性模量 (N/m2)
+  G: 4265000000        # 剪切模量 (N/m2)
+  ro: 3480             # 密度 (kg/m3)，用于计算 self_weight = Area * ro * g
+
+analysis:
+  type: "TH"           # STATIC | MODAL | TH
+  fiber_section: 1     # 0=elasticBeamColumn, 1=forceBeamColumn
+  pretension_load: 0.0
+  multiplier_vertical_load: 1.242584042
+  multiplier_mass: 1.242584042
+  numbers_of_step_gravity: 10
+  tolerance: 1.0e-3
+  number_of_modes: 2
+
+time_history:
+  folder_1: ["FORCE_3"]
+  folder_2: ["Test1"]
+  dt: 0.05             # 时程步长 (s)
+  npt: 70536           # 总步数 (65536 + 5000)
+  ro_air: 1.204        # 空气密度 (kg/m3)，用于气动阻尼
+
+damping:
+  model: "Rayleigh"    # Rayleigh | Modal
+  xi: 0.01             # 阻尼比
+  modes_for_damping: 10
+  global_rayleigh_scale: 1.0
+
+aerodynamic_damping:
+  enabled: true
+  # Verified on 2026-06-11: element-level damping writeback did not alter the
+  # solved OpenSees response for this model. Keep aerodynamic damping as a
+  # recorded limit/diagnostic quantity unless an explicit force model is added.
+  writeback_mode: "record_only"
+  # Use the deformed element tangent when computing relative-flow angle and
+  # equivalent aerodynamic damping. This keeps the original wind-load workflow
+  # but fixes the previous velocity-only local-flow assumption.
+  use_deformed_element_direction: true
+
+aerodynamic_force:
+  enabled: false
+  scale: 1.0
+  log_stride: 20
+
+quasi_steady_aero_force:
+  enabled: false
+  scale: 1.0
+  log_stride: 20
+  # false means the OpenSees external wind force files are not applied; the
+  # real-time quasi-steady force is recomputed from wind velocity and cable
+  # motion at every transient step.
+  use_precomputed_loads: true
+
+incremental_quasi_steady_aero_force:
+  enabled: false
+  scale: 1.0
+  log_stride: 20
+  # This branch keeps the original precomputed Path wind loads and applies only
+  # the motion-induced correction F_current - F_reference at each transient step.
+  keep_precomputed_loads: true
+
+solver:
+  opensees_path: 'D:\Pyprogramme\OpenSees3.8.0\bin\OpenSees.exe'    # OpenSees 3.8.0 executable
+  input_tcl: "Input.tcl"
+  work_dir: "."                # Input.tcl 生成位置（相对于项目根目录）
+
+paths:
+  forces_dir: "data/forces"
+  wind_dir: "data/wind/SIM1"
+  tcl_procedures_dir: "tcl_procedures"
+  output_dir: "output"
+  save_prefix: "MAX_UPDATING_COEFFS_F3"
+
+display:
+  plotter: true
+  modal_plotter: true

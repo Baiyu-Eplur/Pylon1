@@ -1,0 +1,42 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[1]
+BASE_CONFIG = ROOT / "config" / "timur_dynamic_4096.yaml"
+OUT_DIR = ROOT / "output" / "diagnostics" / "typical_explicit_galloping"
+CONFIG_PATH = OUT_DIR / "typical_L322P8_H10P48_U0P6_explicit_force.yaml"
+
+
+def main() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    cfg = yaml.safe_load(BASE_CONFIG.read_text(encoding="utf-8"))
+
+    cfg["geometry"]["L"] = 322.8
+    cfg["geometry"]["Sag"] = 10.48
+    cfg["time_history"]["folder_1"] = ["FORCE_3"]
+    cfg["time_history"]["folder_2"] = ["SIM1"]
+    cfg["time_history"]["dt"] = 0.05
+    cfg["time_history"]["npt"] = 4096
+    cfg.setdefault("damping", {})["global_rayleigh_scale"] = 1.0
+    cfg["aerodynamic_damping"] = {
+        "enabled": True,
+        "writeback_mode": "record_only",
+    }
+    cfg["aerodynamic_force"] = {
+        "enabled": True,
+        "scale": 1.0,
+        "log_stride": 1,
+    }
+    cfg["paths"]["output_dir"] = "output/diagnostics/typical_explicit_galloping/run"
+    cfg["paths"]["save_prefix"] = "TYPICAL_EXPLICIT_GALLOPING"
+
+    CONFIG_PATH.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
+    print(CONFIG_PATH)
+
+
+if __name__ == "__main__":
+    main()

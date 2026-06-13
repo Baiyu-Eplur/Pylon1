@@ -1,0 +1,109 @@
+geometry:
+  type: 2
+  L: 322.8
+  Sag: 10.48
+  discretisation: 3.228
+material:
+  conductor_name: Zebra ACSR
+  Dia: 0.02862
+  E: 69000000000
+  G: 4265000000
+  ro: 3480
+  self_weight_N_per_m: 15.9
+  rated_strength_N: 131900
+analysis:
+  type: TH
+  fiber_section: 2
+  pretension_load: 19785.0
+  multiplier_vertical_load: 1.0
+  multiplier_mass: 1.0
+  numbers_of_step_gravity: 20
+  tolerance: 0.001
+  number_of_modes: 3
+  assume_initial_equilibrium: false
+  initial_state_route: 'C4_static_gravity_equilibrium: ramp gravity in static analysis,
+    then loadConst before transient'
+time_history:
+  folder_1:
+  - FORCE_3
+  folder_2:
+  - SIM1
+  dt: 0.05
+  npt: 1440
+  ro_air: 1.204
+wind_generation:
+  enabled: false
+  u_star: 0.6
+  force_name: FORCE_3
+  sim_name: SIM1
+  support_elevation: 49.4
+  kappa: 0.387
+  z0: 0.05
+  ro_air_force: 0.001293
+  seed: 1
+  reuse_existing: true
+  overwrite: false
+damping:
+  model: Rayleigh
+  xi: 0.01
+  modes_for_damping: 10
+  global_rayleigh_scale: 1.0
+aerodynamic_damping:
+  enabled: true
+  writeback_mode: record_only
+  use_deformed_element_direction: true
+  rationale: Record Den Hartog/effective-damping diagnostics while the active aerodynamic
+    input is supplied by the incremental quasi-steady force branch.
+aerodynamic_force:
+  enabled: false
+  scale: 1.0
+  log_stride: 1
+  rationale: Old explicit equivalent-damping force is disabled.
+solver:
+  opensees_path: D:\Pyprogramme\OpenSees3.8.0\bin\OpenSees.exe
+  input_tcl: Input.tcl
+  work_dir: .
+paths:
+  forces_dir: data/forces
+  wind_dir: data/wind/SIM1
+  time_file: data/aero_coeffs/time.txt
+  aero_coeffs_dir: data/aero_coeffs
+  tcl_procedures_dir: tcl_procedures
+  output_dir: output/diagnostics/typical_incremental_qs_c4_static_balance/run
+  save_prefix: TYPICAL_INCREMENTAL_QS_C4_STATIC_BALANCE
+display:
+  plotter: false
+  modal_plotter: false
+  realtime_monitor: false
+event_stop:
+  enabled: false
+  rationale: No active project-side stop. The run should continue until the requested
+    duration or natural OpenSees failure, with status/logs recorded.
+quasi_steady_aero_force:
+  enabled: false
+  scale: 1.0
+  log_stride: 1
+  use_precomputed_loads: true
+incremental_quasi_steady_aero_force:
+  enabled: true
+  scale: 1.0
+  log_stride: 20
+  keep_precomputed_loads: true
+  force_component_convention: match_original_path_load
+  structural_model: corotTruss + ElasticPPGap + InitStrainMaterial
+  initial_state_route: C4_static_gravity_equilibrium
+  diagnostics:
+  - F_original
+  - F_reference
+  - F_current
+  - Delta_F_motion
+  - total_abs_delta_force
+  - per_node_delta_power
+  - per_node_current_drag_lift_power
+  - baseline_mapping_mismatch
+  - per_element_geometric_strain_and_EA_tension
+diagnostics:
+  element_strain_log_stride: 20
+  rationale: Formal typical galloping verification with C4 static initial balance;
+    record force decomposition, nodal power, element strain/tension, and standard
+    displacement/velocity/acceleration histories.
