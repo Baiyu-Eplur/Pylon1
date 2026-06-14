@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import shutil
 from pathlib import Path
 
 from .config_loader import load_config
@@ -73,6 +74,9 @@ class CableAnalysis:
         input_tcl = self.cfg["solver"]["input_tcl"]
         writer = TclWriter(self.cfg, self.geo_result)
         writer.write_modal(output_path=input_tcl)
+        self._archive_generated_tcl(
+            input_tcl, Path(self.cfg["paths"]["output_dir"]) / "Input_modal.tcl"
+        )
         self.solver.run(
             input_tcl,
             log_dir=Path(self.cfg["paths"]["output_dir"]) / "solver_logs",
@@ -123,6 +127,7 @@ class CableAnalysis:
 
                 # ── Step 1: Modal (static equilibrium + frequencies) ──────
                 writer.write_modal(output_path=input_tcl)
+                self._archive_generated_tcl(input_tcl, Path(output_dir) / "Input_modal.tcl")
                 self.solver.run(
                     input_tcl,
                     log_dir=Path(output_dir) / "solver_logs",
@@ -134,6 +139,7 @@ class CableAnalysis:
                     th_path=str(th_path),
                     output_path=input_tcl,
                 )
+                self._archive_generated_tcl(input_tcl, Path(output_dir) / "Input_time_history.tcl")
                 # inputs_aerodynamic_damping.tcl must live next to Input.tcl
                 aero_tcl = str(
                     Path(self.cfg["solver"].get("work_dir", "."))
@@ -215,6 +221,11 @@ class CableAnalysis:
             output_dir=output_dir,
             prefix=self.cfg["paths"]["save_prefix"],
         )
+
+    @staticmethod
+    def _archive_generated_tcl(source: str, destination: Path) -> None:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, destination)
 
     def _raise_if_tcl_analysis_failed(self, output_dir: Path) -> None:
         status_path = output_dir / "analysis_status.txt"

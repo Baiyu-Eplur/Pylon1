@@ -731,6 +731,7 @@ proc log_element_strain_tension {} {
 	global element_pretension_load
 	global element_pretension_loads
 	global element_tension_only
+	global element_compression_regularization_ratio
 	global element_strain_log_stride
 
 	if {![info exists element_strain_log_stride]} {set element_strain_log_stride 1}
@@ -745,6 +746,7 @@ proc log_element_strain_tension {} {
 	if {![info exists element_axial_EA]} {set element_axial_EA 0.0}
 	if {![info exists element_pretension_load]} {set element_pretension_load 0.0}
 	if {![info exists element_tension_only]} {set element_tension_only 0}
+	if {![info exists element_compression_regularization_ratio]} {set element_compression_regularization_ratio 0.0}
 	if {[info exists opensees_output_dir]} {
 		set elem_path "$opensees_output_dir/element_strain_tension_log.csv"
 		set summary_path "$opensees_output_dir/element_strain_tension_summary_log.csv"
@@ -798,6 +800,9 @@ proc log_element_strain_tension {} {
 		set is_slack 0
 		if {$element_tension_only && $total_tension < 0.0} {
 			set total_tension 0.0
+			set is_slack 1
+		} elseif {$element_compression_regularization_ratio > 0.0 && $total_tension < 0.0} {
+			set total_tension [expr {$element_compression_regularization_ratio * $total_tension}]
 			set is_slack 1
 		}
 		set abs_strain [expr abs($strain)]

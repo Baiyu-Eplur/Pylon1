@@ -52,7 +52,7 @@ class TclWriter:
         """node and mass commands for every node."""
         x, y, z = self.geo["x"], self.geo["y"], self.geo["z"]
         MN, MNT = self.geo["MN"], self.geo["MNT"]
-        tension_only = self._uses_tension_only_truss()
+        tension_only = self._uses_corot_truss_cable()
         for i in range(len(x)):
             self._w(fid,
                 f"node {i+1} {x[i]:.6f} {y[i]:.6f} {z[i]:.6f}; ")
@@ -80,27 +80,40 @@ class TclWriter:
         angles = geo["angles"]
         x = geo["x"]
 
-        if fiber == 1:
+        if fiber in (1, 3):
             self._w(fid, f"uniaxialMaterial Elastic 1 {E:.6f};")
             eps0 = pretension / Area / E
             self._w(fid, f"uniaxialMaterial InitStrainMaterial 10 1 {eps0:.6e};")
             self._w(fid, f"section Fiber 100 -GJ {G * Io:.6f} {{ ")
             self._w(fid, f"patch circ 10 12 6 0 0 0 {Dia / 2:.6f} 0 360; ")
             self._w(fid, "}; ")
-        elif fiber == 2:
+        elif fiber in (2, 4):
             rated_strength = float(mat.get("rated_strength_N", 1.0e12))
             fy = rated_strength / Area
+            compression_ratio = float(ana.get("compression_regularization_ratio", 0.0))
             if self._uses_shape_based_initial_tension():
                 for i, initial_tension in enumerate(self._element_initial_tensions(), start=1):
                     eps0 = initial_tension / Area / E
                     base_tag = 10000 + i
                     init_tag = 20000 + i
                     self._w(fid, f"uniaxialMaterial ElasticPPGap {base_tag} {E:.6f} {fy:.6f} 0.0;")
-                    self._w(fid, f"uniaxialMaterial InitStrainMaterial {init_tag} {base_tag} {eps0:.6e};")
+                    if fiber == 4:
+                        reg_tag = 30000 + i
+                        parallel_tag = 40000 + i
+                        self._w(fid, f"uniaxialMaterial Elastic {reg_tag} {E * compression_ratio:.6f};")
+                        self._w(fid, f"uniaxialMaterial Parallel {parallel_tag} {base_tag} {reg_tag};")
+                        self._w(fid, f"uniaxialMaterial InitStrainMaterial {init_tag} {parallel_tag} {eps0:.6e};")
+                    else:
+                        self._w(fid, f"uniaxialMaterial InitStrainMaterial {init_tag} {base_tag} {eps0:.6e};")
             else:
                 eps0 = pretension / Area / E
                 self._w(fid, f"uniaxialMaterial ElasticPPGap 1 {E:.6f} {fy:.6f} 0.0;")
-                self._w(fid, f"uniaxialMaterial InitStrainMaterial 10 1 {eps0:.6e};")
+                if fiber == 4:
+                    self._w(fid, f"uniaxialMaterial Elastic 2 {E * compression_ratio:.6f};")
+                    self._w(fid, "uniaxialMaterial Parallel 3 1 2;")
+                    self._w(fid, f"uniaxialMaterial InitStrainMaterial 10 3 {eps0:.6e};")
+                else:
+                    self._w(fid, f"uniaxialMaterial InitStrainMaterial 10 1 {eps0:.6e};")
 
         for i in range(len(x) - 1):
             sin_a = -math.sin(angles[i])
@@ -112,12 +125,12 @@ class TclWriter:
                     f"element elasticBeamColumn {i+1} {i+1} {i+2} "
                     f"{Area:.6f} {E:.6f} {G:.6f} "
                     f"{Io:.6e} {In:.6e} {In:.6e} {i+1}; ")
-            elif fiber == 1:
+            elif fiber in (1, 3):
                 self._w(fid,
                     f"geomTransf Corotational {i+1} {sin_a:.6f} 0 {cos_a:.6f}; ")
                 self._w(fid,
                     f"element forceBeamColumn {i+1} {i+1} {i+2} 10 100 {i+1}; ")
-            elif fiber == 2:
+            elif fiber in (2, 4):
                 material_tag = 20000 + i + 1 if self._uses_shape_based_initial_tension() else 10
                 self._w(fid, f"element corotTruss {i+1} {i+1} {i+2} {Area:.12g} {material_tag}; ")
             else:
@@ -149,7 +162,7 @@ class TclWriter:
         # exact comparison is safe: arange + V/parabolic/catenary all produce z==0 at endpoints
         idx0 = int(np.where((x == 0.0) & (z == 0.0))[0][0])
         idxL = int(np.where((x == x.max()) & (z == 0.0))[0][0])
-        if self._uses_tension_only_truss():
+        if self._uses_corot_truss_cable():
             for i in range(len(x)):
                 if i in (idx0, idxL):
                     self._w(fid, f"fix {i + 1} 1 1 1 1 1 1; ")
@@ -481,6 +494,8 @@ class TclWriter:
             )
             self._w(fid, f"set element_pretension_loads {{{pretension_values}}}")
             self._w(fid, f"set element_tension_only {1 if self._uses_tension_only_truss() else 0}")
+            compression_ratio = float(self.cfg["analysis"].get("compression_regularization_ratio", 0.0))
+            self._w(fid, f"set element_compression_regularization_ratio {compression_ratio:.12g}")
             self._w(fid, f"set element_strain_log_stride {element_strain_log_stride}")
             self._w(fid, f"set xi_structural {xi_structural:.6f}")
             self._w(fid, f"set omegaN {omega_n:.6f}")
@@ -533,6 +548,12 @@ class TclWriter:
 
     def _uses_tension_only_truss(self) -> bool:
         return int(self.cfg["analysis"].get("fiber_section", 1)) == 2
+
+    def _uses_regularized_tension_truss(self) -> bool:
+        return int(self.cfg["analysis"].get("fiber_section", 1)) == 4
+
+    def _uses_corot_truss_cable(self) -> bool:
+        return self._uses_tension_only_truss() or self._uses_regularized_tension_truss()
 
     def _assumes_initial_equilibrium(self) -> bool:
         return bool(self.cfg["analysis"].get("assume_initial_equilibrium", False))

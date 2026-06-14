@@ -5135,3 +5135,97 @@ Research implication:
 - For galloping interpretation, results after the first slack event
   (`89.736640 s` in this run) should be treated as post-validity unless the
   research objective explicitly includes slack-cable dynamics.
+
+### 2026-06-14 Cable/Rod Long-Time Structural-Branch Test
+
+Purpose:
+
+- Start a new non-overwriting long-time test on Git branch
+  `cable-rod-long-timeseries-test`.
+- The research objective is not to hide or actively terminate abnormal
+  response, but to determine which cable structural formulation remains
+  physically interpretable after slack/low-tension onset.
+- All production runs for this stage should keep the project-side event stop
+  disabled and should continue to the requested time or natural OpenSees
+  convergence failure.
+
+Literature/model-choice basis:
+
+- Den Hartog galloping theory is a small-disturbance, taut-cable diagnostic
+  basis. It supports interpreting negative aerodynamic damping near the
+  equilibrium state, but it does not validate large-angle, slack, or post-slack
+  cable dynamics.
+- Goyal & Perkins high/low tension hybrid cable modelling shows why low-tension
+  cable regions require rod/cable formulations beyond a pure taut-string model.
+- Exact tension-field cable element and large-deformation rod/ANCF-type cable
+  literature motivate separating taut-cable validity from post-slack cable/rod
+  dynamics.
+- Therefore pure tension-only truss is retained as the current taut-cable
+  baseline, but is not assumed to be adequate after slack because zero
+  compressive tangent can create a local mechanism once multiple neighbouring
+  elements go slack.
+
+New tracked files/scripts:
+
+```text
+docs/cable_rod_model_selection.md
+tools/audit_structural_parameters.py
+tools/prepare_cable_rod_long_test_configs.py
+tools/analyse_cable_rod_long_test.py
+```
+
+Structural parameter audit output:
+
+```text
+output/diagnostics/cable_rod_long_test/parameter_audit/structural_parameter_audit.json
+```
+
+Audited typical-model values:
+
+- `L = 322.8 m`, `Sag = 10.48 m`, sag/span ratio `0.03247`.
+- Zebra ACSR, diameter `0.02862 m`, area `6.43323e-4 m2`.
+- `E = 69 GPa`, `G = 4.265 GPa`.
+- mass per unit length from self-weight: `1.62135 kg/m`.
+- `EA = 44.389 MN`, `EI = 2272.47 N m2`, `GJ = 280.93 N m2`.
+- pretension `19.785 kN`, equal to about `15%` of rated strength.
+- parabolic horizontal tension from `wL^2/(8H)` is `19.761 kN`, matching the
+  configured pretension within about `0.12%`.
+
+Structural branches for the long-time comparison:
+
+1. `current_tension_only`: `fiber_section = 2`,
+   `corotTruss + ElasticPPGap + InitStrainMaterial`.
+2. `calibrated_cable_rod`: `fiber_section = 3`,
+   `forceBeamColumn + Corotational + circular fiber section`, with the same
+   audited `EA/EI/GJ/mass/pretension/gravity`.
+3. `regularized_tension_only`: `fiber_section = 4`,
+   `corotTruss` with `ElasticPPGap` in parallel with a residual elastic
+   stiffness of `1e-4 E`. This is a sensitivity branch only, not a claim that
+   the conductor can physically carry sustained compression.
+
+Traceability rule added:
+
+- Each production run archives the generated OpenSees Tcl input in the run
+  directory:
+  - `Input_modal.tcl`
+  - `Input_time_history.tcl`
+  - `inputs_aerodynamic_damping.tcl`
+- The root-level `Input.tcl` remains a temporary working input and may be
+  overwritten by later runs; the archived copies are the case-specific record.
+
+Smoke-check status:
+
+- `MODAL` run passed for all three branches with OpenSees `3.8.0`.
+- The first three modal frequencies remain essentially matched around
+  `0.171 Hz`, `0.340 Hz`, and `0.342 Hz`, confirming that the new branches are
+  consistent with the same small-disturbance equilibrium stiffness and mass
+  before the long-time nonlinear response diverges.
+
+Planned comparison metrics:
+
+- first slack or low-tension time;
+- first large strain/tension amplification;
+- whether nonphysical jumps occur;
+- attack-angle clipping onset;
+- continuity of incremental aerodynamic force and aerodynamic power;
+- sensitivity of the response to the structural branch.
