@@ -4723,3 +4723,415 @@ Research correctness conclusion:
   - no large drift under no-wind/no-aero;
   - no slack elements;
   - axial strain remains within a physically plausible conductor range.
+
+### 2026-06-13 Bidirectional axial rollback test of the third correction
+
+Purpose:
+
+- The user noted that some literature and special modelling situations may
+  permit local negative axial force / negative tension as an effective local
+  state. Therefore the previous tension-only assumption should be tested rather
+  than treated as an unquestioned truth.
+- We performed a controlled rollback of the third correction only: keep the
+  corrected aerodynamic-force treatment, keep damping as diagnostic /
+  record-only, keep the C4 static gravity equilibrium route, but change the
+  structural element branch from tension-only `corotTruss + ElasticPPGap +
+  InitStrainMaterial` back to the bidirectional axial `forceBeamColumn +
+  Elastic + InitStrainMaterial` branch.
+
+Code and configuration:
+
+- Added:
+
+```text
+tools/prepare_typical_incremental_qs_c4_bidirectional_axial_config.py
+tools/analyse_c4_bidirectional_axial_comparison.py
+```
+
+- Generated config:
+
+```text
+output/diagnostics/typical_incremental_qs_c4_bidirectional_axial/typical_L322P8_H10P48_U0P6_incremental_qs_c4_bidirectional_axial_72s.yaml
+```
+
+- Output directory:
+
+```text
+output/diagnostics/typical_incremental_qs_c4_bidirectional_axial/run
+```
+
+- Comparison directory:
+
+```text
+output/diagnostics/typical_incremental_qs_c4_bidirectional_axial/comparison
+```
+
+Run status:
+
+- OpenSees 3.8.0 completed the 72 s target duration successfully.
+- `analysis_status.txt` reports:
+
+```text
+STATUS success
+MESSAGE target_time_reached
+TIME 72.0
+ANALYZE_RETURN_CODE 0
+```
+
+Key comparison against the C4 tension-only branch:
+
+| quantity | C4 tension-only | C4 bidirectional axial |
+|---|---:|---:|
+| max x-z displacement | `0.1897 m` | `1.3800 m` |
+| max x-z velocity | `0.3346 m/s` | `12.3582 m/s` |
+| max x-z acceleration | `73.81 m/s2` | `6157.92 m/s2` |
+| minimum estimated tension | `18.69 kN` | `-20.35 kN` |
+| first logged negative tension | none | `69.861 s` |
+| max absolute tension | `21.00 kN` | `65.10 kN` |
+| max absolute strain | `2.73e-5` | `1.02e-3` |
+| max total absolute incremental QS force | `135.74 N` | `1469.20 N` |
+| max attack angle in force log | `14.79 deg` | `62.73 deg` |
+| maximum clipped node count | `0` | `8` |
+
+Interpretation:
+
+- Before about `68-69 s`, the tension-only and bidirectional-axial branches
+  are almost identical in tension, strain, monitored displacement, and force
+  history. This confirms that the corrected damping, force superposition, and
+  C4 gravity route are still active and comparable.
+- The bidirectional branch first logs negative tension at about `69.861 s`.
+  After that point, it develops much larger vertical displacement, velocity,
+  acceleration, strain, incremental aerodynamic force, and attack angle. The
+  force table also begins to clip attack angles.
+- Therefore the rollback does not make the response obviously more benign or
+  more stable. It demonstrates that allowing local negative axial force is a
+  modelling choice with major post-onset consequences.
+
+Current research conclusion:
+
+- We should no longer state absolutely that any negative tension is impossible
+  or automatically invalid in every modelling context.
+- For this OpenSees workflow, however, allowing negative axial force in the
+  beam-column branch strongly changes the post-`69 s` response and can push
+  the aerodynamic calculation into larger-angle / clipped-coefficient regimes.
+- The correct next stance is comparative rather than dogmatic:
+  - use the tension-only branch when representing a physical overhead
+    conductor that cannot carry sustained compression;
+  - use the bidirectional axial branch as a sensitivity / alternative modelling
+    hypothesis, especially if a cited formulation intentionally treats local
+    negative axial force as an effective linearized state;
+  - report both only with a clear note that post-negative-tension response is
+    sensitive to the structural element assumption and should not be mixed with
+    the tension-only physical interpretation.
+
+### 2026-06-14 200 s extension attempt for structural-model comparison
+
+Purpose:
+
+- Extend the latest typical C4 incremental-QS case from 72 s to 200 s for both
+  structural assumptions:
+  1. tension-only `corotTruss + ElasticPPGap + InitStrainMaterial`;
+  2. bidirectional axial `forceBeamColumn + Elastic + InitStrainMaterial`.
+- Keep the same wind case, same C4 static gravity equilibrium route, same
+  record-only damping diagnostics, and same incremental QS aerodynamic force
+  formulation.
+
+Code and configuration:
+
+```text
+tools/prepare_c4_200s_structural_model_comparison_configs.py
+tools/analyse_c4_200s_structural_model_comparison.py
+```
+
+Generated configs:
+
+```text
+output/diagnostics/c4_structural_model_comparison_200s/tension_only/tension_only.yaml
+output/diagnostics/c4_structural_model_comparison_200s/bidirectional_axial/bidirectional_axial.yaml
+```
+
+Outputs:
+
+```text
+output/diagnostics/c4_structural_model_comparison_200s/tension_only/run
+output/diagnostics/c4_structural_model_comparison_200s/bidirectional_axial/run
+output/diagnostics/c4_structural_model_comparison_200s/comparison
+```
+
+Important execution note:
+
+- Neither model completed the requested 200 s target.
+- The tension-only model did not naturally fail inside OpenSees, but after a
+  two-hour external execution window it had only advanced to about `129.43 s`.
+  Because the process was externally terminated, `analysis_status.txt` is
+  missing for that run. The available time histories are valid only up to the
+  last recorded time.
+- The bidirectional axial model naturally failed in OpenSees at
+  `108.05175076831534 s`, with:
+
+```text
+STATUS failed
+MESSAGE analysis_did_not_converge_min_factor_reached
+ANALYZE_RETURN_CODE -3
+FACTOR 6.657041767889234e-10
+MIN_FACTOR 1e-06
+```
+
+Key partial-result summary:
+
+| quantity | tension-only, partial to `129.43 s` | bidirectional axial, failed at `108.05 s` |
+|---|---:|---:|
+| max x-z displacement | `6.264 m` | `9.475 m` |
+| max x-z velocity | `42.46 m/s` | `211.72 m/s` |
+| max x-z acceleration | `25202.63 m/s2` | `130912.01 m/s2` |
+| minimum estimated tension | `0.0 kN` | `-390.11 kN` |
+| negative tension rows | `0` | `763` |
+| max absolute tension | `934.63 kN` | `952.13 kN` |
+| max absolute strain | `0.03817` | `0.02100` |
+| max total absolute incremental QS force | `3547 N` | `36956 N` |
+| max attack angle | about `90 deg` | about `90 deg` |
+| max clipped node count | `56` | `54` |
+| max / min total delta power | `+20.9 / -19.7 kW` | `+349 / -875 kW` |
+
+Interpretation:
+
+- The 72 s comparison did not reveal the full long-time behavior. Extending the
+  target duration shows that both structural assumptions eventually leave the
+  small-angle / validated-aerodynamic range under the current wind input.
+- The bidirectional axial branch destabilizes earlier: negative tension begins
+  after about `69.86 s`, the vertical displacement drifts upward, aerodynamic
+  force and power spike, and OpenSees fails at about `108.05 s`.
+- The tension-only branch delays the large response until about `90 s`, then
+  develops slack elements and large high-frequency axial/tension oscillations.
+  It did not naturally fail before the external runtime limit, but it also did
+  not remain in a physically comfortable regime. At the last recorded state
+  around `129.43 s`, midspan vertical displacement is about `6.23 m`, max
+  strain has reached about `3.8%`, and the force table is frequently clipped.
+- Therefore the 200 s extension should not be treated as a successful 200 s
+  simulation. It should be treated as a long-time stability/validity test
+  showing that the current typical case enters a post-validity large-response
+  regime before 200 s.
+
+Research implication:
+
+- For future formal sweeps, we need explicit reporting of:
+  - achieved simulation time;
+  - OpenSees natural failure code or external timeout;
+  - first large-angle/clipping time;
+  - first slack or negative-tension time;
+  - first strain/tension validity-limit crossing.
+- We should not interpret post-clipping large-angle response as calibrated
+  galloping physics unless the aerodynamic coefficient model is extended to
+  large attack angles and the structural formulation is validated for the
+  observed strain/slack/negative-tension range.
+
+### 2026-06-14 Abnormal-onset tracing for the 200 s extension
+
+Purpose:
+
+- Read the 200 s extension outputs parameter by parameter and identify which
+  observable first enters an abnormal-response state.
+- Separate the physical/numerical onset sequence from the final solver outcome.
+
+Additional analysis script:
+
+```text
+tools/trace_c4_200s_abnormal_onset.py
+```
+
+Output:
+
+```text
+output/diagnostics/c4_structural_model_comparison_200s/comparison/abnormal_onset/abnormal_onset_summary.json
+output/diagnostics/c4_structural_model_comparison_200s/comparison/abnormal_onset/tension_only_abnormal_onset.md
+output/diagnostics/c4_structural_model_comparison_200s/comparison/abnormal_onset/bidirectional_axial_abnormal_onset.md
+```
+
+Tension-only event order:
+
+| event | first time |
+|---|---:|
+| acceleration exceeds `100 m/s2` | `88.350 s` |
+| velocity exceeds `1 m/s` | `89.350 s` |
+| first slack element | `89.736640 s` |
+| max strain exceeds `0.001` | `89.736640 s` |
+| total incremental QS force exceeds `500 N` | `89.867828 s` |
+| velocity exceeds `5 m/s` | `90.010400 s` |
+| max strain exceeds `0.005` | `90.089155 s` |
+| max strain exceeds `0.01` | `90.155116 s` |
+| max absolute tension exceeds `100 kN` and `500 kN` | `90.155116 s` |
+| total incremental QS force exceeds `1000 N` | `90.215278 s` |
+| displacement exceeds `0.5 m` | `90.274100 s` |
+| attack angle exceeds `30 deg` and clipping begins | `90.455775 s` |
+| displacement exceeds `1 m` | `90.486500 s` |
+| displacement exceeds `2 m` | `90.779000 s` |
+| attack angle exceeds `60 deg` | `91.359154 s` |
+| total delta power exceeds `10 kW` | `100.196864 s` |
+
+Tension-only interpretation:
+
+- The first flagged abnormal parameter is acceleration at `88.35 s`, followed
+  by velocity growth.
+- The first structural-validity event is slack at `89.736640 s`, initially in
+  elements around the midspan region (`50-52`) and later other local regions.
+- Aerodynamic large-angle/clipping occurs after the structural/dynamic onset,
+  not before it.
+- Solver status is missing because the run was externally terminated after a
+  two-hour runtime window at about `129.43 s`; this is not an OpenSees natural
+  failure. However, by then the case is already outside the validated
+  small-angle / no-slack interpretation range.
+
+Bidirectional axial event order:
+
+| event | first time |
+|---|---:|
+| acceleration exceeds `100 m/s2` | `68.300 s` |
+| velocity exceeds `1 m/s` | `68.650 s` |
+| total incremental QS force exceeds `500 N` | `69.518950 s` |
+| attack-angle clipping begins | `69.518950 s` |
+| node delta power exceeds `100 W` | `69.518950 s` |
+| velocity exceeds `5 m/s` | `69.571400 s` |
+| displacement exceeds `0.5 m` | `69.732700 s` |
+| first negative element tension | `69.861189 s` |
+| attack angle exceeds `30 deg` and `60 deg` | `70.170455 s` |
+| total incremental QS force exceeds `1000 N` | `70.501756 s` |
+| max strain exceeds `0.001` | `70.518784 s` |
+| displacement exceeds `1 m` | `70.518800 s` |
+| total delta power exceeds `1000 W` | `71.399952 s` |
+| displacement exceeds `2 m` | `72.520000 s` |
+| max absolute tension exceeds `100 kN` | `92.701329 s` |
+| total delta power exceeds `10 kW` | `97.406480 s` |
+| max strain exceeds `0.005` | `104.925084 s` |
+| max strain exceeds `0.01` | `107.739246 s` |
+| max absolute tension exceeds `500 kN` | `107.811040 s` |
+
+Bidirectional axial interpretation:
+
+- The first flagged abnormal parameter is again acceleration, but about
+  `20 s` earlier than in the tension-only branch.
+- Large aerodynamic correction and coefficient clipping begin at
+  `69.518950 s`, slightly before the first logged negative tension at
+  `69.861189 s`.
+- First negative-tension rows include elements `33`, `34`, `44`, `54`, and
+  `55`, with estimated tension down to about `-5.72 kN` at first onset.
+- The final OpenSees failure at `108.051750768 s` is a numerical convergence
+  failure in a highly nonlinear state, not a project-side active stop:
+
+```text
+CTestNormDispIncr failed after 100 iterations
+DirectIntegrationAnalysis::analyze() failed at time 108.052
+OpenSees analyze returned -3
+increment factor reduced to 6.657e-10, below minimum 1e-06
+```
+
+Overall root-cause reading:
+
+- In both branches, acceleration/velocity growth appears before gross
+  displacement thresholds.
+- In the bidirectional branch, aerodynamic large-angle/clipping and force
+  amplification precede the first recorded negative-tension row by a fraction
+  of a second, then negative tension strongly amplifies the nonlinear response.
+- In the tension-only branch, slack and strain growth precede aerodynamic
+  clipping; the branch avoids negative tension but later enters a severe
+  slack/large-strain regime.
+- Therefore the earliest abnormal indicator is dynamic response amplification
+  (acceleration), while the earliest model-validity indicators differ by
+  branch:
+  - tension-only: slack + strain onset at about `89.74 s`;
+  - bidirectional axial: aerodynamic clipping/force growth at about
+    `69.52 s`, followed by negative tension at about `69.86 s`.
+
+### 2026-06-14 Focused tension-only failure-mechanism audit
+
+Purpose:
+
+- After the 200 s extension, focus only on the tension-only branch and identify
+  how its late failure mechanism develops.
+- Key question: if negative tension is prevented, why does the model still
+  enter a large-response/slack/large-strain regime?
+
+Additional analysis script:
+
+```text
+tools/diagnose_tension_only_failure_mechanism.py
+```
+
+Output:
+
+```text
+output/diagnostics/c4_structural_model_comparison_200s/comparison/tension_only_failure_mechanism/tension_only_failure_mechanism_summary.json
+output/diagnostics/c4_structural_model_comparison_200s/comparison/tension_only_failure_mechanism/tension_only_86_94_onset_chain.png
+```
+
+Windowed state:
+
+| window | max disp | max vel | max acc | min tension | max slack | max strain | max alpha | clipped |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `86-88 s` | `0.092 m` | `0.378 m/s` | `99.56 m/s2` | `16.76 kN` | `0` | `6.82e-5` | `10.70 deg` | `0` |
+| `88-91 s` | `2.872 m` | `36.83 m/s` | `25202 m/s2` | `0` | `43` | `0.0323` | `46.79 deg` | `3` |
+| `91-96 s` | `5.687 m` | `38.97 m/s` | `25202 m/s2` | `0` | `52` | `0.0379` | `89.87 deg` | `27` |
+| `110-130 s` | `6.264 m` | `42.46 m/s` | `25203 m/s2` | `0` | `51` | `0.0356` | `89.99 deg` | `56` |
+
+Detailed onset sequence:
+
+- `88.35 s`: first acceleration threshold crossing. The largest x-z
+  acceleration is at node `40`, about `102.6 m/s2`, while displacement and
+  velocity are still small (`z` displacement about `0.021 m`, velocity about
+  `0.21 m/s`). This is best interpreted as a high-frequency dynamic warning,
+  not the macro failure itself.
+- `89.736640 s`: first slack event. It occurs near midspan:
+  - element `50`: strain `-0.003380`, raw elastic tension demand
+    `-130.27 kN`, tension-only estimate clamped to `0`;
+  - element `51`: strain `-0.003690`, raw elastic tension demand
+    `-144.01 kN`, clamped to `0`;
+  - element `52`: strain `-0.000492`, raw elastic tension demand
+    `-2.06 kN`, clamped to `0`.
+- At the same first-slack instant, neighboring elements around the midspan
+  have very low positive remaining tension (`~1.4-5.2 kN`), so the local
+  structural tangent is already close to a slack mechanism.
+- `89.867828 s`: total incremental QS force exceeds `500 N`.
+- `90.215278 s`: total incremental QS force exceeds `1000 N`.
+- `90.455775 s`: attack-angle clipping begins and total delta power exceeds
+  `1000 W`.
+- `91.359154 s`: attack angle exceeds `60 deg`.
+
+Mechanism interpretation:
+
+- The tension-only model does not fail through negative tension. Instead, the
+  local midspan region demands compression/shortening under dynamic motion.
+  The tension-only material correctly prevents compressive cable force by
+  setting the affected element force to zero, but this also removes local
+  axial stiffness.
+- Once several neighboring elements go slack or near-slack, the structural
+  system develops a local mechanism. This produces a sudden jump in velocity
+  and acceleration, which then increases relative wind speed and attack angle
+  in the incremental QS force calculation.
+- The aerodynamic model is not the earliest abnormal source in this branch:
+  before `88 s`, alpha is about `10.7 deg` and no coefficient clipping occurs.
+  Large-angle/clipped aerodynamics starts after slack and strain onset.
+- After slack onset, the aerodynamic correction can inject significant power
+  into the now much softer/slackened shape, so the response grows into the
+  post-validity regime.
+- Therefore the tension-only branch failure mechanism is:
+
+```text
+dynamic amplification -> local midspan shortening/compression demand
+-> tension-only clamp creates slack/near-zero tangent region
+-> local mechanism and high acceleration/velocity
+-> relative-flow/attack-angle growth
+-> aerodynamic force and power amplification
+-> large displacement, large strain, large clipped-angle response
+```
+
+Research implication:
+
+- Tension-only behavior is physically better than allowing a cable to carry
+  sustained compression, but it does not by itself guarantee a valid
+  post-slack simulation.
+- Once slack occurs, the current single-chain cable model needs either:
+  - a clear "slack onset / loss of taut-cable validity" limit state; or
+  - a more complete post-slack cable/contact/geometric formulation if we want
+    to simulate beyond slack.
+- For galloping interpretation, results after the first slack event
+  (`89.736640 s` in this run) should be treated as post-validity unless the
+  research objective explicitly includes slack-cable dynamics.
