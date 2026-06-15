@@ -5229,3 +5229,58 @@ Planned comparison metrics:
 - attack-angle clipping onset;
 - continuity of incremental aerodynamic force and aerodynamic power;
 - sensitivity of the response to the structural branch.
+
+Long-time typical-case results:
+
+```text
+output/diagnostics/cable_rod_long_test/comparison/cable_rod_long_test_summary.json
+output/diagnostics/cable_rod_long_test/comparison/cable_rod_long_test_core_comparison.png
+docs/cable_rod_long_test_results.md
+```
+
+Run statuses:
+
+- `current_tension_only`: external 2 h timeout after reaching `117.608 s`.
+  No OpenSees failure status was written before the timeout.
+- `calibrated_cable_rod`: natural OpenSees failure at
+  `108.051750768 s`, `ANALYZE_RETURN_CODE -3`,
+  `analysis_did_not_converge_min_factor_reached`.
+- `regularized_tension_only`: external 2 h timeout after reaching
+  `141.830 s`. No OpenSees failure status was written before the timeout.
+
+Earliest event comparison:
+
+- `current_tension_only`:
+  - acceleration over `100 m/s2`: `88.350 s`;
+  - first low-tension/slack/strain event: `89.736640 s`;
+  - first attack-angle clipping: `90.455775 s`.
+- `calibrated_cable_rod`:
+  - acceleration over `100 m/s2`: `68.300 s`;
+  - first force amplification and alpha clipping: `69.518950 s`;
+  - first negative/low tension: `69.861189 s`;
+  - OpenSees failure: `108.051751 s`.
+- `regularized_tension_only`:
+  - acceleration over `100 m/s2`: `88.400 s`;
+  - first force amplification: `91.472550 s`;
+  - first low-tension/slack/residual negative entry: `91.673316 s`;
+  - first alpha clipping: `91.710519 s`.
+
+Interpretation:
+
+- The three branches remain highly sensitive after the taut-cable state is
+  lost, so the abnormal response is not solved by simply selecting one of the
+  tested branches.
+- Pure tension-only avoids sustained negative force but creates a near-zero
+  tangent local mechanism after slack.
+- Calibrated beam/rod provides a continuous low-tension path and is closer to
+  low-tension cable/rod modelling literature, but the current simple branch
+  permits large compressive axial demand and still enters large-angle
+  aerodynamic amplification and non-convergence.
+- Small-compression regularization smooths the zero-tangent mechanism and
+  delays onset by about `1.9 s`, but it is a sensitivity branch rather than a
+  physical post-slack model.
+- The next research direction should not be an active stop limit. The project
+  should mark first slack/low-tension as a taut-cable validity boundary for
+  galloping interpretation, while separately developing and validating a
+  post-slack cable/rod or ANCF-style model with appropriate large-angle
+  aerodynamic coefficients.
