@@ -534,7 +534,7 @@ proc apply_incremental_quasi_steady_aero_force {} {
 		set node_power_needs_header [expr {![file exists $node_power_path]}]
 		set node_power_file [open $node_power_path a]
 		if {$node_power_needs_header} {
-			puts $node_power_file "time,node,delta_fx,delta_fy,delta_fz,cur_fx,cur_fy,cur_fz,ref_fx,ref_fy,ref_fz,vx,vy,vz,delta_power,current_power,drag_power,lift_power,U_rel,alpha_deg,alpha_lookup_deg,CD,CL,clipped,baseline_mismatch_abs"
+			puts $node_power_file "time,node,delta_fx,delta_fy,delta_fz,cur_fx,cur_fy,cur_fz,ref_fx,ref_fy,ref_fz,vx,vy,vz,wind_y,wind_z,U_wind,ref_alpha_deg,rel_y,rel_z,delta_power,current_power,drag_power,lift_power,U_rel,alpha_deg,alpha_lookup_deg,CD,CL,clipped,baseline_mismatch_abs"
 		}
 	}
 
@@ -685,7 +685,7 @@ proc apply_incremental_quasi_steady_aero_force {} {
 		if {$delta_abs > $max_abs_delta_force} {set max_abs_delta_force $delta_abs}
 		if {$baseline_node_mismatch_abs > $max_baseline_mismatch_abs} {set max_baseline_mismatch_abs $baseline_node_mismatch_abs}
 		if {$write_detailed_log} {
-			puts $node_power_file "$currentTime,$node,$delta_fx,$delta_fy,$delta_fz,$cur_fx,$cur_fy,$cur_fz,$ref_fx,$ref_fy,$ref_fz,$vx,$vy,$vz,$delta_power,$current_power,$drag_power,$lift_power,$U,$alpha_deg,$alpha_lookup,$CD,$CL,$clipped,$baseline_node_mismatch_abs"
+			puts $node_power_file "$currentTime,$node,$delta_fx,$delta_fy,$delta_fz,$cur_fx,$cur_fy,$cur_fz,$ref_fx,$ref_fy,$ref_fz,$vx,$vy,$vz,$v_wind_y,$v_wind_z,$U_ref,$ref_alpha_deg,$rel_y,$rel_z,$delta_power,$current_power,$drag_power,$lift_power,$U,$alpha_deg,$alpha_lookup,$CD,$CL,$clipped,$baseline_node_mismatch_abs"
 		}
 	}
 	if {$write_detailed_log} {
