@@ -473,6 +473,15 @@ proc apply_incremental_quasi_steady_aero_force {} {
 	global incremental_qs_max_alpha_current_deg
 	global incremental_qs_clipped_fraction
 	global incremental_qs_total_abs_delta_force
+	global incremental_qs_node_ref_fx
+	global incremental_qs_node_ref_fy
+	global incremental_qs_node_ref_fz
+	global incremental_qs_node_delta_fx
+	global incremental_qs_node_delta_fy
+	global incremental_qs_node_delta_fz
+	global incremental_qs_node_current_fx
+	global incremental_qs_node_current_fy
+	global incremental_qs_node_current_fz
 	global opensees_output_dir
 
 	if {![info exists enable_incremental_quasi_steady_aero_force]} {set enable_incremental_quasi_steady_aero_force 0}
@@ -672,6 +681,15 @@ proc apply_incremental_quasi_steady_aero_force {} {
 		set fx($node) $delta_fx
 		set fy($node) $delta_fy
 		set fz($node) $delta_fz
+		set incremental_qs_node_ref_fx($node) $ref_fx
+		set incremental_qs_node_ref_fy($node) $ref_fy
+		set incremental_qs_node_ref_fz($node) $ref_fz
+		set incremental_qs_node_delta_fx($node) $delta_fx
+		set incremental_qs_node_delta_fy($node) $delta_fy
+		set incremental_qs_node_delta_fz($node) $delta_fz
+		set incremental_qs_node_current_fx($node) $cur_fx
+		set incremental_qs_node_current_fy($node) $cur_fy
+		set incremental_qs_node_current_fz($node) $cur_fz
 
 		set F_reference [expr $F_reference + $ref_abs]
 		set F_current [expr $F_current + $cur_abs]
@@ -842,6 +860,170 @@ proc log_element_strain_tension {} {
 	}
 	puts $summary_file "$currentTime,$max_abs_strain,$mean_abs_strain,$max_abs_tension,$min_estimated_tension,$max_abs_raw_elastic_tension,$slack_count,$max_element"
 	close $summary_file
+}
+
+proc log_node_force_balance {} {
+	global STKO_VAR_time
+	global STKO_VAR_increment
+	global opensees_output_dir
+	global enable_node_force_balance_diagnostic
+	global node_force_balance_log_stride
+	global node_mass_values
+	global structural_rayleigh_alpha
+	global incremental_qs_node_ref_fx
+	global incremental_qs_node_ref_fy
+	global incremental_qs_node_ref_fz
+	global incremental_qs_node_delta_fx
+	global incremental_qs_node_delta_fy
+	global incremental_qs_node_delta_fz
+	global incremental_qs_node_current_fx
+	global incremental_qs_node_current_fy
+	global incremental_qs_node_current_fz
+
+	if {![info exists enable_node_force_balance_diagnostic]} {set enable_node_force_balance_diagnostic 0}
+	if {!$enable_node_force_balance_diagnostic} {return}
+	if {![info exists node_force_balance_log_stride]} {set node_force_balance_log_stride 1}
+	if {[info exists STKO_VAR_increment] && [expr {$STKO_VAR_increment % $node_force_balance_log_stride}] != 0} {return}
+	if {![info exists structural_rayleigh_alpha]} {set structural_rayleigh_alpha 0.0}
+
+	if {[info exists opensees_output_dir]} {
+		set balance_path "$opensees_output_dir/node_force_balance_log.csv"
+	} else {
+		set balance_path "Output/node_force_balance_log.csv"
+	}
+	set needs_header [expr {![file exists $balance_path]}]
+	set balance_file [open $balance_path a]
+	if {$needs_header} {
+		puts $balance_file "time,node,mass,acc_x,acc_y,acc_z,inertial_x,inertial_y,inertial_z,vel_x,vel_y,vel_z,damping_resist_x,damping_resist_y,damping_resist_z,gravity_x,gravity_y,gravity_z,aero_ref_x,aero_ref_y,aero_ref_z,aero_delta_x,aero_delta_y,aero_delta_z,aero_current_x,aero_current_y,aero_current_z,element_internal_x,element_internal_y,element_internal_z,left_element,left_internal_x,left_internal_y,left_internal_z,right_element,right_internal_x,right_internal_y,right_internal_z,residual_x,residual_y,residual_z,residual_xz_norm"
+	}
+
+	array set internal_x {}
+	array set internal_y {}
+	array set internal_z {}
+	array set left_ele {}
+	array set left_x {}
+	array set left_y {}
+	array set left_z {}
+	array set right_ele {}
+	array set right_x {}
+	array set right_y {}
+	array set right_z {}
+
+	foreach node [getNodeTags] {
+		set internal_x($node) 0.0
+		set internal_y($node) 0.0
+		set internal_z($node) 0.0
+		set left_ele($node) 0
+		set left_x($node) 0.0
+		set left_y($node) 0.0
+		set left_z($node) 0.0
+		set right_ele($node) 0
+		set right_x($node) 0.0
+		set right_y($node) 0.0
+		set right_z($node) 0.0
+	}
+
+	foreach ele [getEleTags] {
+		set nodes [eleNodes $ele]
+		if {[llength $nodes] < 2} {continue}
+		set nnodes [llength $nodes]
+		set ni [lindex $nodes 0]
+		set nj [lindex $nodes end]
+		set f [eleResponse $ele force]
+		set fj_base [expr {6 * ($nnodes - 1)}]
+		if {[llength $f] >= [expr {$fj_base + 3}]} {
+			set fix [lindex $f 0]
+			set fiy [lindex $f 1]
+			set fiz [lindex $f 2]
+			set fjx [lindex $f $fj_base]
+			set fjy [lindex $f [expr {$fj_base + 1}]]
+			set fjz [lindex $f [expr {$fj_base + 2}]]
+		} elseif {[llength $f] >= 6} {
+			set fix [lindex $f 0]
+			set fiy [lindex $f 1]
+			set fiz [lindex $f 2]
+			set fjx [lindex $f 3]
+			set fjy [lindex $f 4]
+			set fjz [lindex $f 5]
+		} else {
+			continue
+		}
+		set internal_x($ni) [expr {$internal_x($ni) + $fix}]
+		set internal_y($ni) [expr {$internal_y($ni) + $fiy}]
+		set internal_z($ni) [expr {$internal_z($ni) + $fiz}]
+		set internal_x($nj) [expr {$internal_x($nj) + $fjx}]
+		set internal_y($nj) [expr {$internal_y($nj) + $fjy}]
+		set internal_z($nj) [expr {$internal_z($nj) + $fjz}]
+		if {$ni < $nj} {
+			set right_ele($ni) $ele
+			set right_x($ni) $fix
+			set right_y($ni) $fiy
+			set right_z($ni) $fiz
+			set left_ele($nj) $ele
+			set left_x($nj) $fjx
+			set left_y($nj) $fjy
+			set left_z($nj) $fjz
+		} else {
+			set left_ele($ni) $ele
+			set left_x($ni) $fix
+			set left_y($ni) $fiy
+			set left_z($ni) $fiz
+			set right_ele($nj) $ele
+			set right_x($nj) $fjx
+			set right_y($nj) $fjy
+			set right_z($nj) $fjz
+		}
+	}
+
+	foreach node [getNodeTags] {
+		set idx [expr {$node - 1}]
+		if {[info exists node_mass_values] && $idx < [llength $node_mass_values]} {
+			set m [lindex $node_mass_values $idx]
+		} else {
+			set m 0.0
+		}
+		set a [nodeAccel $node]
+		set v [nodeVel $node]
+		set ax [lindex $a 0]
+		set ay [lindex $a 1]
+		set az [lindex $a 2]
+		set vx [lindex $v 0]
+		set vy [lindex $v 1]
+		set vz [lindex $v 2]
+		set inertial_x [expr {$m * $ax}]
+		set inertial_y [expr {$m * $ay}]
+		set inertial_z [expr {$m * $az}]
+		set damping_x [expr {$structural_rayleigh_alpha * $m * $vx}]
+		set damping_y [expr {$structural_rayleigh_alpha * $m * $vy}]
+		set damping_z [expr {$structural_rayleigh_alpha * $m * $vz}]
+		set gravity_x 0.0
+		set gravity_y 0.0
+		set gravity_z [expr {-9.80665 * $m}]
+		set ref_x 0.0
+		set ref_y 0.0
+		set ref_z 0.0
+		set delta_x 0.0
+		set delta_y 0.0
+		set delta_z 0.0
+		set current_x 0.0
+		set current_y 0.0
+		set current_z 0.0
+		if {[info exists incremental_qs_node_ref_fx($node)]} {set ref_x $incremental_qs_node_ref_fx($node)}
+		if {[info exists incremental_qs_node_ref_fy($node)]} {set ref_y $incremental_qs_node_ref_fy($node)}
+		if {[info exists incremental_qs_node_ref_fz($node)]} {set ref_z $incremental_qs_node_ref_fz($node)}
+		if {[info exists incremental_qs_node_delta_fx($node)]} {set delta_x $incremental_qs_node_delta_fx($node)}
+		if {[info exists incremental_qs_node_delta_fy($node)]} {set delta_y $incremental_qs_node_delta_fy($node)}
+		if {[info exists incremental_qs_node_delta_fz($node)]} {set delta_z $incremental_qs_node_delta_fz($node)}
+		if {[info exists incremental_qs_node_current_fx($node)]} {set current_x $incremental_qs_node_current_fx($node)}
+		if {[info exists incremental_qs_node_current_fy($node)]} {set current_y $incremental_qs_node_current_fy($node)}
+		if {[info exists incremental_qs_node_current_fz($node)]} {set current_z $incremental_qs_node_current_fz($node)}
+		set residual_x [expr {$current_x + $gravity_x - $inertial_x - $damping_x - $internal_x($node)}]
+		set residual_y [expr {$current_y + $gravity_y - $inertial_y - $damping_y - $internal_y($node)}]
+		set residual_z [expr {$current_z + $gravity_z - $inertial_z - $damping_z - $internal_z($node)}]
+		set residual_xz_norm [expr {sqrt($residual_y*$residual_y + $residual_z*$residual_z)}]
+		puts $balance_file "$STKO_VAR_time,$node,$m,$ax,$ay,$az,$inertial_x,$inertial_y,$inertial_z,$vx,$vy,$vz,$damping_x,$damping_y,$damping_z,$gravity_x,$gravity_y,$gravity_z,$ref_x,$ref_y,$ref_z,$delta_x,$delta_y,$delta_z,$current_x,$current_y,$current_z,$internal_x($node),$internal_y($node),$internal_z($node),$left_ele($node),$left_x($node),$left_y($node),$left_z($node),$right_ele($node),$right_x($node),$right_y($node),$right_z($node),$residual_x,$residual_y,$residual_z,$residual_xz_norm"
+	}
+	close $balance_file
 }
 
 proc apply_explicit_aero_damping_force {} {
@@ -1244,5 +1426,6 @@ if {$enable_incremental_quasi_steady_aero_force} {
 global STKO_VAR_OnAfterAnalyze_CustomFunctions
 lappend STKO_VAR_OnAfterAnalyze_CustomFunctions adapt_damp
 lappend STKO_VAR_OnAfterAnalyze_CustomFunctions log_element_strain_tension
+lappend STKO_VAR_OnAfterAnalyze_CustomFunctions log_node_force_balance
 puts ">>> !!!!!Registered functions after append: $STKO_VAR_OnAfterAnalyze_CustomFunctions"
 

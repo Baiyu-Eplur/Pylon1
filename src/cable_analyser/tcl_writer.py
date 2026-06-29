@@ -478,6 +478,10 @@ class TclWriter:
         event_max_clipped_fraction = float(event_stop.get("max_clipped_fraction", 1.0e30))
         diagnostics = self.cfg.get("diagnostics", {})
         element_strain_log_stride = int(diagnostics.get("element_strain_log_stride", 1))
+        node_force_balance_enabled = 1 if bool(diagnostics.get("node_force_balance_enabled", False)) else 0
+        node_force_balance_log_stride = int(diagnostics.get("node_force_balance_log_stride", 1))
+        damping_scale = float(self.cfg.get("damping", {}).get("global_rayleigh_scale", 1.0))
+        structural_rayleigh_alpha = damping_scale * 2.0 * xi_structural * omega_n
 
         with open(output_path, "w", encoding="utf-8") as fid:
             self._w(fid, f"set MassM {MN[1]:.6f}")
@@ -486,6 +490,9 @@ class TclWriter:
             self._w(fid, f"set ro_air {ro_air:.4f}")
             dx_values = " ".join(f"{float(value):.12g}" for value in DX)
             self._w(fid, f"set node_tributary_lengths {{{dx_values}}}")
+            mass_values = " ".join(f"{float(value):.12g}" for value in MN)
+            self._w(fid, f"set node_mass_values {{{mass_values}}}")
+            self._w(fid, f"set structural_rayleigh_alpha {structural_rayleigh_alpha:.12g}")
             self._w(fid, f"set incremental_qs_ro_air_density {incremental_qs_ro_air_density:.12g}")
             self._w(fid, f"set element_axial_EA {E * Area:.12g}")
             self._w(fid, f"set element_pretension_load {pretension:.12g}")
@@ -521,6 +528,8 @@ class TclWriter:
             self._w(fid, f"set event_stop_min_effective_damping {event_min_xi:.12g}")
             self._w(fid, f"set event_stop_max_alpha_deg {event_max_alpha:.12g}")
             self._w(fid, f"set event_stop_max_clipped_fraction {event_max_clipped_fraction:.12g}")
+            self._w(fid, f"set enable_node_force_balance_diagnostic {node_force_balance_enabled}")
+            self._w(fid, f"set node_force_balance_log_stride {node_force_balance_log_stride}")
 
     # ═══════════════════════════════════════════════════════════════════
     # Internal utility

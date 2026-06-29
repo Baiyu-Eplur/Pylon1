@@ -5458,3 +5458,90 @@ Next model-improvement direction:
    near the support-side elements.
 5. Add energy consistency diagnostics for kinetic energy proxy, strain-energy
    proxy, aerodynamic work, support work, and damping work.
+
+### 2026-06-29 Node force-balance diagnostic at the 68.25 s onset window
+
+Purpose:
+
+- The current research focus remains physical galloping-model correctness, not
+  merely completing OpenSees runs.
+- No response-based active stop or artificial limit was added.
+- A fixed-duration `72 s` diagnostic run was used only to cover the previously
+  identified first large-acceleration window around `68.25 s`.
+
+Run/configuration:
+
+```text
+output/diagnostics/cable_rod_long_test/calibrated_cable_rod_node_balance_72s_v2/calibrated_cable_rod_node_balance_72s_v2.yaml
+output/diagnostics/cable_rod_long_test/calibrated_cable_rod_node_balance_72s_v2/run
+```
+
+Post-processing:
+
+```text
+output/diagnostics/cable_rod_long_test/comparison/node_force_balance_72s_v2
+docs/node_force_balance_68p25s_diagnostic.md
+```
+
+New diagnostic fields:
+
+- per-node mass, acceleration, velocity;
+- inertial force `m a`;
+- structural Rayleigh damping resistance `alpha_M m v`;
+- gravity `-m g`;
+- node-level aerodynamic `aero_ref`, `aero_delta`, and `aero_current`;
+- left/right adjacent element translational end-force contributions;
+- total element internal resultant;
+- equilibrium residual:
+
+```text
+residual = aero_current + gravity - inertia - damping - element_internal
+```
+
+Implementation note:
+
+- The first implementation used the second node returned by `eleNodes` as the
+  end node. In the calibrated `forceBeamColumn` branch, `eleNodes` can include
+  an internal/control node. The diagnostic was corrected to use the first and
+  last node tags as the physical element ends, matching the local aerodynamic
+  direction calculation.
+- Corrected residuals at the key events are only about `0.1-3 N`, so the force
+  decomposition is self-consistent for attribution.
+
+Key result at the first `>100 m/s2` event:
+
+```text
+time = 68.25 s
+node = 52
+acc_xz = 113.77 m/s2
+inertial_xz = 595.42 N
+aero_current_xz = 8.08 N
+aero_delta_xz = 5.17 N
+left element 51 resultant = 282.46 N
+right element 52 resultant = 302.63 N
+residual_xz = 2.05 N
+```
+
+Conclusion:
+
+- The first abnormal acceleration at `68.25 s` is directly dominated by the
+  adjacent element internal-force resultants, not by a sudden local
+  aerodynamic-force spike.
+- The local aerodynamic force at that instant is two orders of magnitude
+  smaller than the inertial/internal-force terms.
+- Element strain/tension logs show no slack or large strain at `68.25 s`; the
+  initial onset is therefore not a low-tension/slack transition.
+- The aerodynamic branch becomes important later, after structural motion has
+  grown enough to increase the motion-correction force, relative angle, and
+  eventually coefficient clipping.
+
+Next check:
+
+1. Audit whether the original Path wind load contains high spatial-frequency
+   or weakly coherent nodal components that excite local cable/rod modes.
+2. Compare response modal content with physical cable modes and element-level
+   high-frequency modes.
+3. Test time-step/force-interpolation sensitivity without adding response-based
+   active limits.
+4. Re-check cable/rod discretisation and mass distribution for spurious local
+   dynamic modes.
