@@ -5284,3 +5284,69 @@ Interpretation:
   galloping interpretation, while separately developing and validating a
   post-slack cable/rod or ANCF-style model with appropriate large-angle
   aerodynamic coefficients.
+
+### 2026-06-29 Current Core Methodology for Model Development
+
+This is the current highest-priority working principle for the next stage of
+the galloping research project.
+
+Research objective:
+
+- The purpose of this project is to build a more realistic and accurate
+  galloping model, not merely to make OpenSees runs finish or to suppress
+  abnormal response.
+- Before the model is physically validated, no project-side active limit,
+  event-stop threshold, or artificial boundary condition should be added to
+  terminate the analysis early.
+- A run should continue until the requested duration or until OpenSees itself
+  naturally fails/converges unsuccessfully. Natural OpenSees failure is a valid
+  research output and must be recorded.
+
+Model-update workflow:
+
+1. Apply one physically motivated model update at a time when possible.
+2. Run the updated model under controlled, comparable inputs.
+3. Record the full time-history response and solver state.
+4. After the run, judge whether the response is consistent with real structural
+   response, galloping mechanics, and published engineering/research cases.
+5. If the response is unreasonable or the solver fails, trace backward from the
+   abnormal/failure time through all recorded variables to infer the likely
+   modelling error or missing physics.
+6. Use that diagnosis to improve the model in the next iteration.
+
+Mandatory monitoring data for formal model-update runs:
+
+- Geometry and deformed cable shape over time.
+- Element internal force state, including axial strain/tension or equivalent
+  rod/cable internal force measures.
+- Inter-element/local interaction indicators whenever available or newly added.
+- Key-node kinematics at least at quarter-span, midspan, and three-quarter-span:
+  displacement, velocity, and acceleration in the relevant directions.
+- Aerodynamic quantities, including `C_L`, `C_D`, angle of attack, relative
+  wind velocity, incremental/full aerodynamic force components, and aerodynamic
+  power/work indicators.
+- Effective damping and Den Hartog/delta-type diagnostic quantities, clearly
+  marked as diagnostics when they are not directly applied to the equation of
+  motion.
+- Support reactions and solver/convergence state over time.
+- Any additional diagnostics needed to answer the active modelling question may
+  be added, but existing required monitoring channels should not be removed.
+
+Failure/abnormal-response analysis rule:
+
+- If OpenSees stops, record the OpenSees return code, status file, last solver
+  norms, factor/substepping state, final physical time, and the latest complete
+  rows of all response logs.
+- Diagnose the failure by tracing backward from the failure/abnormal time:
+  structural kinematics -> element force/strain -> aerodynamic force/power ->
+  damping/diagnostic quantities -> support reactions -> solver convergence.
+- The goal of this diagnosis is to identify a physical modelling deficiency or
+  numerical formulation issue, then propose the next scientifically justified
+  model improvement.
+
+Explicit prohibition:
+
+- Do not make the model appear successful by adding active displacement,
+  velocity, slack, force, or attack-angle termination limits.
+- Such quantities may be recorded and used as post-processing validity markers,
+  but they should not actively stop the formal model-development simulations.
