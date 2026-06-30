@@ -5545,3 +5545,103 @@ Next check:
    active limits.
 4. Re-check cable/rod discretisation and mass distribution for spurious local
    dynamic modes.
+
+### 2026-06-30 Path-load spatial/temporal root-cause diagnostic
+
+Purpose:
+
+- Find the essential cause of the abnormal adjacent-element force resultant
+  that appears before the large response.
+- No response-based active stop or artificial limit was added.
+- The diagnostic checked original Path load spatial roughness, temporal
+  content, response high-wavenumber content, and two 72 s sensitivity controls.
+
+Primary outputs:
+
+```text
+docs/path_load_spatial_temporal_root_cause.md
+output/diagnostics/cable_rod_long_test/comparison/path_load_spatial_temporal_diagnostic
+output/diagnostics/cable_rod_long_test/comparison/path_load_sensitivity_results
+```
+
+Baseline:
+
+```text
+output/diagnostics/cable_rod_long_test/calibrated_cable_rod_node_balance_72s_v2/run
+```
+
+Baseline force-balance fact at the first large-acceleration event:
+
+```text
+time = 68.25 s
+node = 52
+acc_xz = 113.77 m/s2
+node internal resultant = 579.67 N
+node aero current resultant = 8.08 N
+node aero motion delta = 5.17 N
+```
+
+Path-load spatial diagnostic:
+
+- Original `FORCE_3/SIM1` adjacent-node correlation:
+  - `Fy` mean correlation `0.348`, minimum `0.178`;
+  - `Fz` mean correlation `0.575`, minimum `0.465`.
+- Near `68.0-69.1 s`, high spatial-wavenumber energy fraction:
+  - `Fy`, spatial modes above index 12: `0.691`;
+  - `Fy`, spatial modes above index 25: `0.436`;
+  - `Fz`, spatial modes above index 12: `0.500`;
+  - `Fz`, spatial modes above index 25: `0.292`.
+
+Sensitivity controls:
+
+1. Temporal interpolation / smaller step:
+
+```text
+output/diagnostics/cable_rod_long_test/path_load_sensitivity/temporal_interp_dt0p025_72s/temporal_interp_dt0p025_72s.yaml
+```
+
+- Same weather/load field linearly interpolated to `dt = 0.025 s`.
+- No `acc_xz > 100 m/s2` event.
+- Whole-run max acceleration: `22.31 m/s2`.
+- Node 52 near `68.25 s`: `acc_xz = 8.58 m/s2`,
+  internal resultant `62.88 N`, aero current `3.85 N`.
+
+2. Spatial smoothing:
+
+```text
+output/diagnostics/cable_rod_long_test/path_load_sensitivity/spatial_smooth5_dt0p05_72s/spatial_smooth5_dt0p05_72s.yaml
+```
+
+- Same `dt = 0.05 s`; force/wind histories smoothed along node index with
+  `[1,4,6,4,1]/16`.
+- No `acc_xz > 100 m/s2` event.
+- Whole-run max acceleration: `15.00 m/s2`.
+- Node 52 near `68.25 s`: `acc_xz = 3.43 m/s2`,
+  internal resultant `55.22 N`, aero current `2.61 N`.
+
+Root-cause conclusion:
+
+- The abnormal 68.25 s event is not a verified physical galloping onset.
+- It is best explained as a forcing/numerical artefact produced by the
+  combination of low spatial coherence / high-wavenumber nodal Path loads and
+  the original `0.05 s` transient/load increment.
+- The direct trigger is local structural internal-force imbalance. The
+  aerodynamic motion-correction force becomes important later, after this
+  locally excited response has already grown.
+- Because spatial smoothing at the original `0.05 s` step removes the large
+  acceleration, Path-load spatial roughness is a primary modelling issue rather
+  than a pure integrator issue.
+
+Next modelling change:
+
+1. Do not add active response limits.
+2. Replace mutually jagged independent nodal Path loads with a spatially
+   coherent wind/load field.
+3. Generate wind on a physically justified aerodynamic grid with target
+   coherence, then interpolate to structural nodes/elements.
+4. Apply loads as element-equivalent distributed aerodynamic loads or smooth
+   tributary nodal loads.
+5. Use structural substeps smaller than the wind/load sampling interval, with
+   continuous time interpolation of aerodynamic input.
+6. Validate future large-response/galloping conclusions only after time-step
+   refinement and load-coherence sensitivity converge.
